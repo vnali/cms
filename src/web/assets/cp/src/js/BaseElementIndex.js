@@ -66,7 +66,9 @@ Craft.BaseElementIndex = Garnish.Base.extend(
         view: null,
         _autoSelectElements: null,
         $countContainer: null,
+        totalElements: null,
         page: 1,
+        totalPages: 1,
         $exportBtn: null,
 
         actions: null,
@@ -74,6 +76,8 @@ Craft.BaseElementIndex = Garnish.Base.extend(
         actionsFootHtml: null,
         $selectAllContainer: null,
         $selectAllCheckbox: null,
+        $selectEverythingContainer: null,
+        $selectEverythingCheckbox: null,
         showingActionTriggers: false,
         exporters: null,
         _$detachedToolbarItems: null,
@@ -514,6 +518,11 @@ Craft.BaseElementIndex = Garnish.Base.extend(
             }
         },
 
+        setTotalElements: function(count) {
+            this.totalElements = count;
+            this.totalPages = Math.max(Math.ceil(count / this.settings.batchSize), 1);
+        },
+
         /**
          * Sets the page number.
          */
@@ -609,10 +618,10 @@ Craft.BaseElementIndex = Garnish.Base.extend(
                 this.setIndexAvailable();
 
                 if (textStatus === 'success') {
+                    this.setTotalElements(response.count);
                     // Have we gone too far?
-                    var totalPages = Math.max(Math.ceil(response.count / this.settings.batchSize), 1);
-                    if (this.page > totalPages) {
-                        this.setPage(totalPages);
+                    if (this.page > this.totalPages) {
+                        this.setPage(this.totalPages);
                         this.updateElements(true);
                         return;
                     }
@@ -656,11 +665,13 @@ Craft.BaseElementIndex = Garnish.Base.extend(
 
         submitAction: function(actionClass, actionParams) {
             // Make sure something's selected
-            var selectedElementIds = this.view.getSelectedElementIds(),
-                totalSelected = selectedElementIds.length;
-
-            if (totalSelected === 0) {
-                return;
+            debugger;
+            var selectedElementIds;
+            if (!this.$selectEverythingCheckbox || !this.$selectEverythingCheckbox.prop('checked')) {
+                selectedElementIds = this.view.getSelectedElementIds();
+                if (selectedElementIds.length === 0) {
+                    return;
+                }
             }
 
             // Find the action
@@ -736,12 +747,14 @@ Craft.BaseElementIndex = Garnish.Base.extend(
             // Do we have an action UI to update?
             if (this.actions) {
                 var totalSelected = this.view.getSelectedElements().length;
+                var selectAll = false;
 
                 if (totalSelected !== 0) {
                     if (totalSelected === this.view.getEnabledElements().length) {
                         this.$selectAllCheckbox.removeClass('indeterminate');
                         this.$selectAllCheckbox.addClass('checked');
                         this.$selectAllContainer.attr('aria-checked', 'true');
+                        selectAll = true;
                     } else {
                         this.$selectAllCheckbox.addClass('indeterminate');
                         this.$selectAllCheckbox.removeClass('checked');
@@ -753,6 +766,22 @@ Craft.BaseElementIndex = Garnish.Base.extend(
                     this.$selectAllCheckbox.removeClass('indeterminate checked');
                     this.$selectAllContainer.attr('aria-checked', 'false');
                     this.hideActionTriggers();
+                }
+
+                if (selectAll && this.totalPages > 1) {
+                    if (!this.$selectEverythingContainer) {
+                        this.$selectEverythingContainer = Craft.ui.createCheckboxField({
+                            label: Craft.t('app', 'Select all {count} matching {type}', {
+                                count: Craft.formatNumber(this.totalElements),
+                                type: this.settings.elementTypePluralName,
+                            }),
+                        }).appendTo(this.$elements);
+                        this.$selectEverythingCheckbox = this.$selectEverythingContainer.find('input');
+                    }
+                } else if (this.$selectEverythingContainer) {
+                    this.$selectEverythingContainer.remove();
+                    this.$selectEverythingContainer = null;
+                    this.$selectEverythingCheckbox = null;
                 }
             }
         },
@@ -1507,7 +1536,7 @@ Craft.BaseElementIndex = Garnish.Base.extend(
                 this.$countContainer.text(response.countLabel);
             } else {
                 var $paginationContainer = $('<div class="flex pagination"/>').appendTo(this.$countContainer);
-                var totalPages = Math.max(Math.ceil(response.count / this.settings.batchSize), 1);
+                this.setTotalElements(response.count);
 
                 var $prevBtn = $('<div/>', {
                     'class': 'page-link' + (this.page > 1 ? '' : ' disabled'),
@@ -1515,7 +1544,7 @@ Craft.BaseElementIndex = Garnish.Base.extend(
                     title: Craft.t('app', 'Previous Page')
                 }).appendTo($paginationContainer);
                 var $nextBtn = $('<div/>', {
-                    'class': 'page-link' + (this.page < totalPages ? '' : ' disabled'),
+                    'class': 'page-link' + (this.page < this.totalPages ? '' : ' disabled'),
                     'data-icon': 'rightangle',
                     title: Craft.t('app', 'Next Page')
                 }).appendTo($paginationContainer);
@@ -1534,7 +1563,7 @@ Craft.BaseElementIndex = Garnish.Base.extend(
                     });
                 }
 
-                if (this.page < totalPages) {
+                if (this.page < this.totalPages) {
                     this.addListener($nextBtn, 'click', function() {
                         this.removeListener($prevBtn, 'click');
                         this.removeListener($nextBtn, 'click');
@@ -1836,7 +1865,7 @@ Craft.BaseElementIndex = Garnish.Base.extend(
             modal: null,
             storageKey: null,
             criteria: null,
-            batchSize: 50,
+            batchSize: 25,
             disabledElementIds: [],
             selectable: false,
             multiSelect: false,

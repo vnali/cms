@@ -165,7 +165,7 @@ class ElementIndexesController extends BaseElementsController
         $elementsService = Craft::$app->getElements();
 
         $actionClass = $requestService->getRequiredBodyParam('elementAction');
-        $elementIds = $requestService->getRequiredBodyParam('elementIds');
+        $elementIds = $requestService->getBodyParam('elementIds');
 
         // Find that action from the list of available actions for the source
         if (!empty($this->actions)) {
